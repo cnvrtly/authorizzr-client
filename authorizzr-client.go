@@ -12,7 +12,6 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"fmt"
 	"strconv"
-
 )
 
 func ValidateToken(tokenCtxKey interface{}, authorizzrCheckTokenUrl string, apiKey string) adaptr.Adapter {
@@ -186,10 +185,15 @@ func ParseWorkspaceIdentString(workspaceIdentString string) (*WorkspaceIdentObje
 }
 
 type WorkspaceIdentObject struct {
+	// this is the (parent)namespace under which user was created
 	UserNamespaceId string
+	// user id number
 	UserId          string
+	// current user's selected workspace
 	Workspace       string
+	// full string raw value that was parsed
 	Value           WorkspaceIdentString
+	// user ident - includes parent workspace path and user id / excludes selected workspace
 	UserIdentString UserIdentString
 }
 
