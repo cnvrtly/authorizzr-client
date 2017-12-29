@@ -10,6 +10,9 @@ import (
 	"strings"
 	"io/ioutil"
 	"github.com/dgrijalva/jwt-go"
+	"fmt"
+	"strconv"
+
 )
 
 func ValidateToken(tokenCtxKey interface{}, authorizzrCheckTokenUrl string, apiKey string) adaptr.Adapter {
@@ -51,7 +54,7 @@ func isTokenValid(ctx context.Context, token string, authorizzrCheckTokenUrl str
 	//fmt.Println("CHECKING AUTH resp=", string(responseJson),"err=",err, "apiKey=", apiKey, " token=",token)
 
 	if err == nil && string(responseJson) != `{"valid":true}` {
-		err=errors.New(string(responseJson))
+		err = errors.New(string(responseJson))
 	}
 	if err != nil {
 		return err
@@ -60,7 +63,7 @@ func isTokenValid(ctx context.Context, token string, authorizzrCheckTokenUrl str
 	return nil
 }
 
-func UserIdentAndAudience2Ctx(ctxTokenKey interface{}, ctxUserIdentKey interface{}, tknAudKey ) adaptr.Adapter {
+func UserIdentAndAudience2Ctx(ctxTokenKey interface{}, ctxUserIdentKey interface{}, tknAudKey interface{}) adaptr.Adapter {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tknClaims, err := GetRawTokenClaims(adaptr.GetCtxValue(r, ctxTokenKey).(string))
@@ -74,7 +77,7 @@ func UserIdentAndAudience2Ctx(ctxTokenKey interface{}, ctxUserIdentKey interface
 				http.Error(w, "empty user ident in token", http.StatusBadRequest)
 				return
 			}
-			_, _, err = apiKey.ParseUserIdent(userIdent)
+			_, _, err = ParseUserIdent(userIdent)
 			if err != nil {
 				http.Error(w, "user ident err="+err.Error(), http.StatusBadRequest)
 				return
@@ -86,7 +89,7 @@ func UserIdentAndAudience2Ctx(ctxTokenKey interface{}, ctxUserIdentKey interface
 				return
 			}
 
-			_, err = apiKey.ParseWorkspaceIdentString(audience)
+			_, err = ParseWorkspaceIdentString(audience)
 			if err != nil {
 				http.Error(w, "audience parse err="+err.Error(), http.StatusBadRequest)
 				return
@@ -102,7 +105,7 @@ func getTokenPayloadPartRaw(rawJWToken string) (string, error) {
 		return "", errors.New("token length too small")
 	}
 	if strings.Count(rawJWToken, ".") != 2 {
-		return "", ErrNotAToken
+		return "", errors.New("Not JWT token")
 	}
 	rawSplit := strings.Split(rawJWToken, ".")
 	return rawSplit[1], nil
@@ -126,3 +129,72 @@ func GetRawTokenClaims(rawJWToken string) (*jwt.StandardClaims, error) {
 	}
 	return claims, nil
 }
+
+func ParseUserIdent(userIdentString string) (namespaceId string, userId int, err error) {
+	lastSep := strings.LastIndex(userIdentString, userIdentSeparator)
+	if lastSep == -1 {
+		return "", 0, errors.New("can not find userIdentSeparator in user ident string")
+	}
+	if strings.Count(userIdentString, userIdentSeparator) > 2 {
+		return "", 0, errors.New("too many user ident separators - only top level users can create sub namespace users")
+	}
+
+	namespaceId = userIdentString[0:lastSep]
+	userId, err = strconv.Atoi(userIdentString[lastSep+len(userIdentSeparator):])
+	if err != nil {
+		return "", 0, fmt.Errorf("parsing user ident - userId=%v not number err=%v", userId, err)
+	}
+	if userId < 0 {
+		return "", 0, fmt.Errorf("parsing user ident - user id < 0")
+	}
+	if namespaceId == "" {
+		return "", 0, fmt.Errorf("parsing user ident - namespaceId empty")
+	}
+	return
+}
+
+// nativeTknAudienceValue in form of namespaceId/userId/workspaceName
+func ParseWorkspaceIdentString(workspaceIdentString string) (*WorkspaceIdentObject, error) {
+	if workspaceIdentString == "" {
+		return nil, errors.New("workspaceIdentString is empty")
+	}
+
+	lastWrkspSep := strings.LastIndex(workspaceIdentString, workspaceIdentSeparator)
+	if lastWrkspSep == -1 {
+		return nil, errors.New("no workspace separator found string=" + workspaceIdentString)
+	}
+
+	wrksp := workspaceIdentString[lastWrkspSep+len(workspaceIdentSeparator):]
+	if strings.Count(workspaceIdentString, workspaceIdentSeparator) > 1 && wrksp != "" {
+		return nil, errors.New("too many workspace ident separators - only top level users can create sub namespace users wrkspIdentStr=" + string(workspaceIdentString))
+	}
+
+	permObj := &WorkspaceIdentObject{
+		Workspace:       wrksp,
+		Value:           WorkspaceIdentString(workspaceIdentString),
+		UserIdentString: UserIdentString(workspaceIdentString[0:lastWrkspSep]),
+	}
+
+	ns, usrId, err := ParseUserIdent(string(permObj.UserIdentString))
+	if err != nil {
+		return nil, fmt.Errorf("can not parse userIdent from workspaceIdentString=%v", permObj.UserIdentString)
+	}
+
+	permObj.UserId = strconv.Itoa(usrId)
+	permObj.UserNamespaceId = ns
+	return permObj, nil
+}
+
+type WorkspaceIdentObject struct {
+	UserNamespaceId string
+	UserId          string
+	Workspace       string
+	Value           WorkspaceIdentString
+	UserIdentString UserIdentString
+}
+
+type UserIdentString string
+type WorkspaceIdentString string
+
+const userIdentSeparator string = "-.-"
+const workspaceIdentSeparator string = "._."
