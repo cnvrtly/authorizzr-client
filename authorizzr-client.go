@@ -62,7 +62,44 @@ func isTokenValid(ctx context.Context, token string, authorizzrCheckTokenUrl str
 	return nil
 }
 
-func UserIdentAndAudience2Ctx(ctxTokenKey interface{}, ctxUserIdentKey interface{}, tknAudKey interface{}) adaptr.Adapter {
+func WorkspaceIdent2Ctx(ctxTokenKey interface{}, ctxWorkspaceIdentKey interface{}, ctxTokenUserIdentKey interface{}) adaptr.Adapter {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			tknClaims, err := GetRawTokenClaims(adaptr.GetCtxValue(r, ctxTokenKey).(string))
+			if err != nil {
+				http.Error(w, "can not get tkn claims err="+err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			userIdent := tknClaims.Subject
+			if userIdent == "" {
+				http.Error(w, "empty user ident in token", http.StatusBadRequest)
+				return
+			}
+			_, _, err = ParseUserIdent(userIdent)
+			if err != nil {
+				http.Error(w, "user ident err="+err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			audience := tknClaims.Audience
+			if audience == "" {
+				http.Error(w, "empty audience in token", http.StatusBadRequest)
+				return
+			}
+
+			wrkspIdent, err := ParseWorkspaceIdentString(audience)
+			if err != nil {
+				http.Error(w, "workspace ident parse err="+err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			h.ServeHTTP(w, adaptr.SetCtxValue(adaptr.SetCtxValue(r, ctxTokenUserIdentKey, userIdent), ctxWorkspaceIdentKey, wrkspIdent))
+		})
+	}
+}
+
+func UserIdentAndAudience2Ctx(ctxTokenKey interface{}, ctxUserIdentKey interface{}, ctxAudienceKey interface{}) adaptr.Adapter {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tknClaims, err := GetRawTokenClaims(adaptr.GetCtxValue(r, ctxTokenKey).(string))
@@ -94,7 +131,7 @@ func UserIdentAndAudience2Ctx(ctxTokenKey interface{}, ctxUserIdentKey interface
 				return
 			}
 
-			h.ServeHTTP(w, adaptr.SetCtxValue(adaptr.SetCtxValue(r, ctxUserIdentKey, userIdent), tknAudKey, audience))
+			h.ServeHTTP(w, adaptr.SetCtxValue(adaptr.SetCtxValue(r, ctxUserIdentKey, userIdent), ctxAudienceKey, audience))
 		})
 	}
 }
@@ -188,11 +225,11 @@ type WorkspaceIdentObject struct {
 	// this is the (parent)namespace under which user was created
 	UserNamespaceId string
 	// user id number
-	UserId          string
+	UserId string
 	// current user's selected workspace
-	Workspace       string
+	Workspace string
 	// full string raw value that was parsed
-	Value           WorkspaceIdentString
+	Value WorkspaceIdentString
 	// user ident - includes parent workspace path and user id / excludes selected workspace
 	UserIdentString UserIdentString
 }
