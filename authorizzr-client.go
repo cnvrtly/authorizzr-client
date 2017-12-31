@@ -239,3 +239,25 @@ type WorkspaceIdentString string
 
 const userIdentSeparator string = "-.-"
 const workspaceIdentSeparator string = "._."
+
+func GenerateUserIdentString(userNamespaceId string, userId string) (UserIdentString, error) {
+	if userNamespaceId == "" || userId == "" /* || strings.Index(userNamespaceId, userIdentSeparator)!=-1 || strings.Index(userId, userIdentSeparator)!=-1*/ {
+		return "", fmt.Errorf("GenerateUserIdentString error value uNS=%v uId=%v", userNamespaceId, userId)
+	}
+	if strings.Count(userNamespaceId, userIdentSeparator) > 1 {
+		return "", errors.New("too many user ident separators in user namespace - only top level users can create sub namespace users")
+	}
+
+	usrIdent := userNamespaceId + userIdentSeparator + userId
+	/*if strings.Index(usrIdent, workspaceIdentSeparator)!=-1 {
+		return "", errors.New("userIdent can not include "+workspaceIdentSeparator+" string")
+	}*/
+	return UserIdentString(usrIdent), nil
+}
+
+func GenerateWorkspaceIdentString(userIdent UserIdentString, currWorkspace string) (WorkspaceIdentString, error) {
+	if strings.Count(string(userIdent), workspaceIdentSeparator) > 1 {
+		return "", errors.New("too many workspace ident separators in userIdent- only top level users can create sub namespace users ident="+string(userIdent))
+	}
+	return WorkspaceIdentString(strings.Join([]string{string(userIdent), currWorkspace}, workspaceIdentSeparator)), nil
+}
