@@ -237,8 +237,8 @@ type WorkspaceIdentObject struct {
 type UserIdentString string
 type WorkspaceIdentString string
 
-const userIdentSeparator string = "..u.."
-const workspaceIdentSeparator string = "..ws.."
+const userIdentSeparator string = "_..u.._"
+const workspaceIdentSeparator string = "_..ws.._"
 
 func GenerateUserIdentString(userNamespaceId string, userId string) (UserIdentString, error) {
 	if userNamespaceId == "" || userId == "" /* || strings.Index(userNamespaceId, userIdentSeparator)!=-1 || strings.Index(userId, userIdentSeparator)!=-1*/ {
