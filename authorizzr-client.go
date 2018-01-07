@@ -201,8 +201,8 @@ func ParseWorkspaceIdentString(workspaceIdentString string) (*WorkspaceIdentObje
 	}
 
 	wrksp := workspaceIdentString[lastWrkspSep+len(workspaceIdentSeparator):]
-	if strings.Count(workspaceIdentString, workspaceIdentSeparator) > 1 && wrksp != "" {
-		return nil, errors.New("too many workspace ident separators - only top level users can create sub namespace users wrkspIdentStr=" + string(workspaceIdentString))
+	if strings.Count(workspaceIdentString, workspaceIdentSeparator) > 2 && wrksp != "" {
+		return nil, errors.New("too many workspace ident separators - only sub level users can create sub namespace users wrkspIdentStr=" + string(workspaceIdentString))
 	}
 
 	permObj := &WorkspaceIdentObject{
@@ -257,7 +257,7 @@ func GenerateUserIdentString(userNamespaceId string, userId string) (UserIdentSt
 
 func GenerateWorkspaceIdentString(userIdent UserIdentString, currWorkspace string) (WorkspaceIdentString, error) {
 	if strings.Count(string(userIdent), workspaceIdentSeparator) > 1 {
-		return "", errors.New("too many workspace ident separators in userIdent- only top level users can create sub namespace users ident="+string(userIdent))
+		return "", errors.New("too many workspace ident separators in userIdent- only top and sub level users can create namespace ident="+string(userIdent))
 	}
 	return WorkspaceIdentString(strings.Join([]string{string(userIdent), currWorkspace}, workspaceIdentSeparator)), nil
 }
